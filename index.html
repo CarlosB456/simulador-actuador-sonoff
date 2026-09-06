@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Simulador 3D: Actuador 12V con Sonoff Dual y Relés LY2NJ (10A 8P)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <script src="three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+  <script src="OrbitControls.js"></script>
+  <script>
+    if (typeof THREE.OrbitControls === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+    }
+  </script>
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      user-select: none;
+      background: #080c14;
+      touch-action: none;
+    }
+    #canvas3d {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      touch-action: none;
+    }
+    .glass-panel {
+      background: rgba(13, 20, 36, 0.94);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .glow-cyan {
+      box-shadow: 0 0 25px rgba(6, 182, 212, 0.45);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.45);
+    }
+    .glow-amber {
+      box-shadow: 0 0 25px rgba(245, 158, 11, 0.45);
+    }
+    .glow-red {
+      box-shadow: 0 0 30px rgba(239, 68, 68, 0.7);
+    }
+    input[type=range] {
+      accent-color: #06b6d4;
+    }
+    /* Safe area insets for notched phones */
+    .safe-top {
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+    }
+    .safe-bottom {
+      padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
+    /* Custom mobile friendly scrollbars */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(51, 65, 85, 0.8);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="text-slate-100">
+
+  <div id="canvas-container" class="relative w-full h-screen overflow-hidden">
+    <canvas id="canvas3d"></canvas>
+
+    <!-- Top Header (Responsive) -->
+    <header class="absolute top-2 left-2 right-2 md:top-3 md:left-4 md:right-4 flex flex-wrap justify-between items-center pointer-events-none z-20 gap-2 safe-top">
+      <!-- Title & Branding -->
+      <div class="glass-panel px-3 py-2 md:px-4 md:py-2.5 rounded-2xl pointer-events-auto flex items-center space-x-2.5 shadow-2xl">
+        <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/40 shrink-0">
+          <svg class="w-4 h-4 md:w-5 md:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-bold text-xs md:text-sm lg:text-base text-white flex items-center gap-1.5">
+            <span>Actuador 12V + Sonoff Dual</span>
+            <span class="text-[9px] px-1.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">LY2NJ 10A</span>
+          </h1>
+          <p class="text-[10px] md:text-[11px] text-slate-400 hidden sm:block">Esquema Real con Relés LY2NJ (8 Pines) en Modo Inching</p>
+        </div>
+      </div>
+
+      <!-- Action & Toggle Bar -->
+      <div class="flex items-center gap-1.5 md:gap-2 pointer-events-auto">
+        <!-- Toggle 3D Labels Button -->
+        <button id="btn-toggle-labels" title="Mostrar/Ocultar etiquetas en 3D" class="glass-panel px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-bold text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1 shadow-lg border border-cyan-500/40 active:scale-95">
+          <span>🏷️</span>
+          <span class="hidden sm:inline">Bornes:</span>
+          <b id="labels-status-text" class="text-emerald-400 text-[11px]">ON</b>
+        </button>
+
+        <!-- Open Wiring Table Button -->
+        <button id="btn-open-wiring" title="Ver tabla completa de cables pin a pin" class="glass-panel px-3 py-1.5 md:px-3.5 md:py-2 rounded-xl text-xs font-bold bg-blue-600/80 hover:bg-blue-600 text-white transition flex items-center gap-1.5 shadow-lg shadow-blue-600/30 border border-blue-400/40 active:scale-95">
+          <span>📋</span>
+          <span class="hidden sm:inline">Guía</span> Cables
+        </button>
+
+        <!-- Mode Toggle Button (Safe vs Danger) -->
+        <button id="btn-mode-toggle" class="glass-panel px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 active:scale-95">
+          <span id="mode-led" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="mode-text" class="text-[11px]">Modo Seguro</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ==========================================
+         DESKTOP SIDE PANELS (Hidden on Mobile)
+         ========================================== -->
+
+    <!-- Desktop Left Controller (md:block) -->
+    <div class="hidden md:block absolute bottom-5 left-5 pointer-events-auto z-20 w-88 glass-panel rounded-3xl p-4 shadow-2xl border border-slate-700/60 max-w-[92vw]">
+      <div class="flex items-center justify-between pb-2.5 border-b border-slate-700/50 mb-3">
+        <div class="flex items-center space-x-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></div>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-200">App eWeLink Virtual</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+            ⏱️ Inching ON
+          </span>
+          <button id="btn-sound-desktop" class="btn-sound-toggle w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 text-xs transition">
+            🔊
+          </button>
+        </div>
+      </div>
+
+      <!-- Inching Timer -->
+      <div class="bg-slate-900/90 rounded-2xl p-2.5 border border-slate-800 mb-3 space-y-2">
+        <div class="flex items-center justify-between text-[11px]">
+          <span class="text-slate-300 font-bold flex items-center gap-1">
+            <span>⏱️</span> Avance Lento (Inching):
+          </span>
+          <span class="timer-setting-text font-mono font-bold text-cyan-400">12 segundos</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="range" min="3" max="25" value="12" class="timer-slider-input flex-1 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+          <span class="text-[10px] text-slate-400 font-mono timer-display-val">12s</span>
+        </div>
+        <p class="text-[10px] text-slate-400 leading-tight">
+          Sin finales de carrera: Al pulsar en la app, corre este tiempo y corta solo.
+        </p>
+      </div>
+
+      <!-- Main Sonoff Dual Buttons -->
+      <div class="grid grid-cols-2 gap-2.5 mb-3">
+        <button class="btn-ch1-action relative group p-3.5 rounded-2xl bg-slate-800/90 hover:bg-slate-750 border border-slate-700 transition-all flex flex-col items-center justify-center gap-1 active:scale-95">
+          <div class="led-btn-ch1 w-3.5 h-3.5 rounded-full bg-slate-600 border border-slate-500 transition-all"></div>
+          <span class="text-xs font-bold text-white group-hover:text-emerald-300">CANAL 1</span>
+          <span class="text-[11px] text-emerald-400 font-bold flex items-center gap-1">▲ ABRIR</span>
+          <span class="countdown-ch1 text-[10px] font-mono text-emerald-300 hidden">12.0s</span>
+        </button>
+
+        <button class="btn-ch2-action relative group p-3.5 rounded-2xl bg-slate-800/90 hover:bg-slate-750 border border-slate-700 transition-all flex flex-col items-center justify-center gap-1 active:scale-95">
+          <div class="led-btn-ch2 w-3.5 h-3.5 rounded-full bg-slate-600 border border-slate-500 transition-all"></div>
+          <span class="text-xs font-bold text-white group-hover:text-amber-300">CANAL 2</span>
+          <span class="text-[11px] text-amber-400 font-bold flex items-center gap-1">▼ CERRAR</span>
+          <span class="countdown-ch2 text-[10px] font-mono text-amber-300 hidden">12.0s</span>
+        </button>
+      </div>
+
+      <!-- Stop & Test -->
+      <div class="flex gap-2 mb-3">
+        <button class="btn-stop-action flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-200 transition active:scale-95">
+          ⏹️ Detener
+        </button>
+        <button class="btn-both-action flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-600 text-xs font-bold text-slate-300 transition active:scale-95">
+          ⚡ Ambos ON
+        </button>
+      </div>
+
+      <!-- Manual Slider -->
+      <div class="bg-slate-900/90 rounded-2xl p-2.5 border border-slate-800 space-y-1.5 mb-3">
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-slate-400 font-medium">Control Manual Vástago:</span>
+          <span class="slider-pos-text font-mono font-bold text-cyan-400 text-xs">0 mm (0%)</span>
+        </div>
+        <input type="range" min="0" max="300" value="0" class="rod-slider-input w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+      </div>
+
+      <!-- Telemetry -->
+      <div class="bg-slate-900/90 rounded-2xl p-2.5 border border-slate-800 space-y-1">
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-slate-400">Tensión Motor:</span>
+          <span class="motor-voltage-text font-mono font-bold text-slate-400">0.0 V (Frenado)</span>
+        </div>
+        <div class="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+          <span>Estado:</span>
+          <span class="motion-status-badge font-bold text-slate-300">En Reposo</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop Right Explanation (md:block) -->
+    <div class="hidden md:flex flex-col absolute top-20 right-5 pointer-events-auto z-20 w-96 max-h-[75vh] glass-panel rounded-3xl p-5 shadow-2xl border border-slate-700/60 overflow-hidden max-w-[92vw]">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700/50 mb-3">
+        <div class="flex items-center space-x-2">
+          <span class="text-lg">💡</span>
+          <h2 class="text-xs font-bold text-white uppercase tracking-wider">Explicación en Vivo</h2>
+        </div>
+        <button class="btn-info-modal-trigger text-xs text-cyan-400 hover:text-cyan-300 underline font-medium">
+          Guía eWeLink
+        </button>
+      </div>
+
+      <div class="live-explanation-box text-xs text-slate-300 leading-relaxed overflow-y-auto space-y-3 pr-1">
+        <!-- Injected via JS -->
+      </div>
+
+      <div class="pt-3 mt-3 border-t border-slate-700/50">
+        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-2">Cámaras Rápidas:</span>
+        <div class="grid grid-cols-5 gap-1 text-[10px]">
+          <button class="cam-btn py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold" data-cam="general">General</button>
+          <button class="cam-btn py-1.5 rounded-lg bg-gradient-to-r from-blue-900/60 to-cyan-900/60 hover:from-blue-800 hover:to-cyan-800 border border-cyan-500/30 text-cyan-300 font-bold" data-cam="actuador">🔍 Vástago</button>
+          <button class="cam-btn py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold" data-cam="reles">Relés 8P</button>
+          <button class="cam-btn py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold" data-cam="sonoff">Sonoff</button>
+          <button class="cam-btn py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold" data-cam="fuente">Fuente</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         MOBILE BOTTOM SHEET / DRAWER (md:hidden)
+         ========================================== -->
+    <div id="mobile-drawer" class="md:hidden fixed bottom-0 left-0 right-0 z-30 transition-all duration-300 transform translate-y-0">
+      <!-- Drawer Glass Card -->
+      <div class="glass-panel rounded-t-3xl border-t border-x border-slate-700/80 shadow-2xl p-3 pb-safe-bottom">
+        <!-- Handle & Drawer Toggle Button -->
+        <div id="mobile-drawer-toggle" class="flex items-center justify-between py-1 px-2 cursor-pointer mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <span class="text-xs font-bold text-white uppercase tracking-wider">Panel de Control</span>
+            <span id="mobile-mini-status" class="text-[10px] text-cyan-300 font-mono">0V (Reposo)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-sound-mobile" class="btn-sound-toggle w-7 h-7 rounded-lg bg-slate-800 text-slate-300 text-xs">🔊</button>
+            <span id="mobile-drawer-chevron" class="text-slate-400 text-xs transition-transform duration-200">▼</span>
+          </div>
+        </div>
+
+        <!-- Mobile Drawer Tabs -->
+        <div id="mobile-tabs-header" class="grid grid-cols-3 gap-1 bg-slate-900/80 p-1 rounded-xl mb-2 text-xs font-bold">
+          <button id="tab-btn-ctrl" class="py-1.5 rounded-lg bg-cyan-600 text-white shadow-sm transition">📱 Mando</button>
+          <button id="tab-btn-info" class="py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition">💡 Explicación</button>
+          <button id="tab-btn-cam" class="py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition">🎥 Cámaras</button>
+        </div>
+
+        <!-- Mobile Drawer Content Area -->
+        <div id="mobile-drawer-content" class="max-h-[50vh] overflow-y-auto">
+          <!-- TAB 1: CONTROLS -->
+          <div id="tab-pane-ctrl" class="space-y-2.5">
+            <!-- Channel Buttons (Min 48px touch target) -->
+            <div class="grid grid-cols-2 gap-2">
+              <button class="btn-ch1-action min-h-[56px] rounded-2xl bg-slate-800/95 border border-slate-700 active:scale-95 flex flex-col items-center justify-center gap-0.5 transition">
+                <div class="flex items-center gap-1.5">
+                  <div class="led-btn-ch1 w-3 h-3 rounded-full bg-slate-600 transition-all"></div>
+                  <span class="text-xs font-bold text-white">CANAL 1</span>
+                </div>
+                <span class="text-[11px] text-emerald-400 font-bold">▲ ABRIR</span>
+                <span class="countdown-ch1 text-[10px] font-mono text-emerald-300 hidden">12.0s</span>
+              </button>
+
+              <button class="btn-ch2-action min-h-[56px] rounded-2xl bg-slate-800/95 border border-slate-700 active:scale-95 flex flex-col items-center justify-center gap-0.5 transition">
+                <div class="flex items-center gap-1.5">
+                  <div class="led-btn-ch2 w-3 h-3 rounded-full bg-slate-600 transition-all"></div>
+                  <span class="text-xs font-bold text-white">CANAL 2</span>
+                </div>
+                <span class="text-[11px] text-amber-400 font-bold">▼ CERRAR</span>
+                <span class="countdown-ch2 text-[10px] font-mono text-amber-300 hidden">12.0s</span>
+              </button>
+            </div>
+
+            <!-- Stop Button -->
+            <div class="flex gap-2">
+              <button class="btn-stop-action flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-200 active:scale-95">
+                ⏹️ Detener
+              </button>
+              <button class="btn-both-action flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-300 active:scale-95">
+                ⚡ Test Ambos ON
+              </button>
+            </div>
+
+            <!-- Inching Slider -->
+            <div class="bg-slate-900/90 rounded-2xl p-2 border border-slate-800">
+              <div class="flex justify-between items-center text-[11px] mb-1">
+                <span class="text-slate-400">⏱️ Avance Lento (Inching):</span>
+                <span class="timer-setting-text font-mono font-bold text-cyan-400">12s</span>
+              </div>
+              <input type="range" min="3" max="25" value="12" class="timer-slider-input w-full h-2 bg-slate-800 rounded-lg cursor-pointer">
+            </div>
+
+            <!-- Rod Manual Slider -->
+            <div class="bg-slate-900/90 rounded-2xl p-2 border border-slate-800">
+              <div class="flex justify-between items-center text-[11px] mb-1">
+                <span class="text-slate-400">Vástago Manual:</span>
+                <span class="slider-pos-text font-mono font-bold text-cyan-400">0 mm (0%)</span>
+              </div>
+              <input type="range" min="0" max="300" value="0" class="rod-slider-input w-full h-2 bg-slate-800 rounded-lg cursor-pointer">
+            </div>
+          </div>
+
+          <!-- TAB 2: EXPLANATION -->
+          <div id="tab-pane-info" class="hidden space-y-2 text-xs">
+            <div class="live-explanation-box space-y-2 text-slate-300 pr-1">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+
+          <!-- TAB 3: CAMERAS -->
+          <div id="tab-pane-cam" class="hidden space-y-2">
+            <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Vistas 3D Rápidas:</span>
+            <div class="grid grid-cols-3 gap-1.5 text-xs font-bold">
+              <button class="cam-btn py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700" data-cam="general">General</button>
+              <button class="cam-btn py-2.5 rounded-xl bg-gradient-to-r from-blue-900/80 to-cyan-900/80 text-cyan-300 border border-cyan-500/40" data-cam="actuador">🔍 Vástago</button>
+              <button class="cam-btn py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700" data-cam="reles">Relés LY2NJ</button>
+              <button class="cam-btn py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700" data-cam="sonoff">Sonoff</button>
+              <button class="cam-btn py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700" data-cam="fuente">Fuente 12V</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3D Navigation Guide Tip (Desktop only) -->
+    <div class="absolute bottom-5 right-5 pointer-events-none z-10 text-[11px] text-slate-400 glass-panel px-3 py-1.5 rounded-xl border border-slate-800 hidden lg:flex items-center gap-2">
+      <span>🖱️ <b>Arrastrar:</b> Rotar</span> • 
+      <span><b>Rueda:</b> Zoom</span> • 
+      <span><b>Clic en cables:</b> Inspeccionar</span>
+    </div>
+
+    <!-- 3D Hover Tooltip Card -->
+    <div id="hover-tooltip" class="hidden absolute pointer-events-none z-40 glass-panel px-3 py-2 rounded-xl text-xs shadow-2xl border border-cyan-500/50 text-white max-w-xs transition-opacity duration-150">
+      <div id="tooltip-title" class="font-bold text-cyan-400 mb-0.5"></div>
+      <div id="tooltip-desc" class="text-slate-300 text-[11px] leading-tight"></div>
+    </div>
+
+    <!-- Slide-Out Wiring Guide Modal -->
+    <div id="wiring-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6">
+      <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col p-4 md:p-6 shadow-2xl">
+        <div class="flex justify-between items-center pb-3 border-b border-slate-800 mb-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-lg">
+              🔌
+            </div>
+            <div>
+              <h3 class="text-base md:text-lg font-bold text-white">
+                Guía de Conexión Real: Relé LY2NJ (8 Pines 10A)
+              </h3>
+              <p class="text-[11px] md:text-xs text-slate-400">
+                Pines exactos para Sonoff Dual, Fuente 12V, Relés LY2NJ y Actuador
+              </p>
+            </div>
+          </div>
+          <button id="btn-close-wiring" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+            ✕
+          </button>
+        </div>
+
+        <div class="overflow-y-auto space-y-4 text-xs text-slate-300 pr-1 leading-relaxed">
+          <!-- Pinout Diagram for 8-Pin Base -->
+          <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
+            <h4 class="text-cyan-400 font-bold text-xs md:text-sm flex items-center gap-1.5">
+              <span>📌</span> Mapa de Bornes de la Base de 8 Pines (Zócalo PTF08A / LY2NJ)
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-[11px]">
+              <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                <span class="font-bold text-amber-400 block border-b border-slate-800 pb-1">⚡ Bobina 220V AC (Parte Inferior):</span>
+                <p>• <b>Pin 7:</b> Fase conmutada 220V (desde Sonoff Out 1 en Relé 1; Out 2 en Relé 2).</p>
+                <p>• <b>Pin 8:</b> Neutro 220V común (desde Sonoff N a Pin 8 de Relé 1 y puente a Relé 2).</p>
+              </div>
+              <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                <span class="font-bold text-emerald-400 block border-b border-slate-800 pb-1">⚙️ Contactos de Potencia (10A):</span>
+                <p>• <b>Pin 5 (COM):</b> Directo al <b>Cable del Actuador</b> (Relé 1 a Cable 1; Relé 2 a Cable 2).</p>
+                <p>• <b>Pin 3 (NO):</b> Conectar a <b>+12V</b> (+V) de la Fuente de Poder.</p>
+                <p>• <b>Pin 1 (NC):</b> Conectar a <b>GND</b> (-V masa) de la Fuente de Poder.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Master Table of 14 Wires -->
+          <div>
+            <h4 class="text-cyan-400 font-bold text-xs md:text-sm mb-2 flex items-center gap-1.5">
+              <span>📋</span> Tabla de Cables Físicos (Toca un cable para resaltarlo en 3D)
+            </h4>
+            <div class="overflow-x-auto rounded-2xl border border-slate-800">
+              <table class="w-full text-left text-[10px] md:text-[11px] font-mono whitespace-nowrap">
+                <thead class="bg-slate-800/80 text-slate-200 border-b border-slate-700">
+                  <tr>
+                    <th class="p-2">Cable</th>
+                    <th class="p-2">Desde (Borne)</th>
+                    <th class="p-2">Hasta (Borne)</th>
+                    <th class="p-2">Señal / Función</th>
+                    <th class="p-2">Color Sugerido</th>
+                    <th class="p-2">Calibre</th>
+                  </tr>
+                </thead>
+                <tbody id="wiring-table-body" class="divide-y divide-slate-800 bg-slate-900/60">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 mt-3 flex justify-between items-center">
+          <span class="text-[10px] md:text-xs text-slate-400">Toca cualquier fila para ver el cable en 3D.</span>
+          <button id="btn-close-wiring-2" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition text-xs">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger Alert Overlay -->
+    <div id="danger-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-slate-900 border-2 border-red-500 rounded-3xl max-w-lg p-5 md:p-6 shadow-2xl text-center glow-red">
+        <div class="w-14 h-14 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-500/40 text-2xl">
+          💥
+        </div>
+        <h3 class="text-lg md:text-xl font-black text-white mb-2">¡CORTOCIRCUITO FRANCO!</h3>
+        <p class="text-xs md:text-sm text-slate-300 mb-3 text-left">
+          Al conectar dos fuentes directamente al mismo motor en polaridad inversa:
+        </p>
+        <div class="bg-red-950/40 border border-red-500/30 rounded-2xl p-3.5 text-[11px] md:text-xs text-red-200 text-left space-y-1.5 mb-4">
+          <p>• La <b>Fuente 1</b> inyecta <b>+12V</b> al Cable 1 y <b>GND</b> al Cable 2.</p>
+          <p>• La <b>Fuente 2</b> (apagada) tiene sus bornes de 12V conectados al revés.</p>
+          <p>• Los <b>diodos rectificadores</b> de la Fuente 2 actúan como un cortocircuito directo a tierra.</p>
+          <p class="font-bold text-red-400">➡️ Salta la térmica, se queman los diodos y explotan los capacitores.</p>
+        </div>
+        <button id="btn-close-danger" class="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition text-xs md:text-sm">
+          Entendido, volver
+        </button>
+      </div>
+    </div>
+
+    <!-- Full Documentation Modal -->
+    <div id="info-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl max-h-[88vh] flex flex-col p-5 shadow-2xl">
+        <div class="flex justify-between items-center pb-3 border-b border-slate-800 mb-3">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            📖 Modo Pulsador (Inching) en eWeLink
+          </h3>
+          <button id="btn-close-info" class="w-7 h-7 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+            ✕
+          </button>
+        </div>
+        <div class="overflow-y-auto space-y-3.5 text-xs text-slate-300 pr-1 leading-relaxed">
+          <section>
+            <h4 class="text-cyan-400 font-bold text-xs md:text-sm mb-1">¿Cómo se configura en la app eWeLink?</h4>
+            <ol class="list-decimal list-inside space-y-1 mt-1.5 text-slate-200">
+              <li>Abre <b>eWeLink</b> y entra al <b>Sonoff Dual</b>.</li>
+              <li>Toca el menú <b>(•••)</b> arriba a la derecha.</li>
+              <li>Activa primero <b>Enclavamiento (Interlock)</b> para seguridad.</li>
+              <li>Activa <b>Avance Lento (Inching)</b>:
+                <ul class="list-disc list-inside pl-4 text-cyan-300 mt-1">
+                  <li>Canal 1 (Abrir): Tiempo de carrera (ej. 12 seg).</li>
+                  <li>Canal 2 (Cerrar): Mismo tiempo (ej. 12 seg).</li>
+                </ul>
+              </li>
+              <li>Guarda los cambios. ¡Listo! Corta solo sin sensores externos.</li>
+            </ol>
+          </section>
+        </div>
+        <div class="pt-3 border-t border-slate-800 mt-3 text-right">
+          <button id="btn-close-info-2" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition text-xs">
+            Entendido
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Simulation Logic & Three.js -->
+  <script>
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+        this.motorOsc = null;
+        this.motorGain = null;
+        this.motorPlaying = false;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      click() {
+        if (!this.enabled) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.04);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.04);
+      }
+      relaySnap() {
+        if (!this.enabled) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(45, this.ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.05);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.05);
+      }
+      startMotor() {
+        if (!this.enabled || this.motorPlaying) return;
+        this.init();
+        try {
+          this.motorOsc = this.ctx.createOscillator();
+          this.motorGain = this.ctx.createGain();
+          const filter = this.ctx.createBiquadFilter();
+
+          this.motorOsc.type = 'sawtooth';
+          this.motorOsc.frequency.setValueAtTime(95, this.ctx.currentTime);
+
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(320, this.ctx.currentTime);
+
+          this.motorGain.gain.setValueAtTime(0.01, this.ctx.currentTime);
+          this.motorGain.gain.exponentialRampToValueAtTime(0.12, this.ctx.currentTime + 0.08);
+
+          this.motorOsc.connect(filter);
+          filter.connect(this.motorGain);
+          this.motorGain.connect(this.ctx.destination);
+          this.motorOsc.start();
+          this.motorPlaying = true;
+        } catch (e) {}
+      }
+      stopMotor() {
+        if (!this.motorPlaying || !this.motorOsc) return;
+        try {
+          this.motorGain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
+          setTimeout(() => {
+            if (this.motorOsc) {
+              this.motorOsc.stop();
+              this.motorOsc.disconnect();
+              this.motorOsc = null;
+            }
+            this.motorPlaying = false;
+          }, 70);
+        } catch (e) {
+          this.motorPlaying = false;
+        }
+      }
+      spark() {
+        if (!this.enabled) return;
+        this.init();
+        const bufferSize = this.ctx.sampleRate * 0.2;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.6, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+        noise.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+      }
+    }
+    const sound = new SoundFX();
+
+    const state = {
+      mode: 'safe',
+      ch1: false,
+      ch2: false,
+      interlock: true,
+      inchingDuration: 12.0,
+      ch1Timer: 0.0,
+      ch2Timer: 0.0,
+      actuatorPos: 0.0,
+      voltage: 0.0,
+      showLabels: true,
+      selectedWire: null,
+      mobileDrawerOpen: true
+    };
+
+    const canvas = document.getElementById('canvas3d');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x080c14);
+    scene.fog = new THREE.FogExp2(0x080c14, 0.030);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI / 2 - 0.05;
+    controls.minDistance = 1.5;
+    controls.maxDistance = 30;
+
+    // Adaptive Camera Setup for Mobile (Portrait) vs Desktop
+    function setupCameraFraming() {
+      const isMobile = window.innerWidth < 768;
+      if (isMobile) {
+        camera.fov = 56;
+        camera.position.set(0.2, 10.0, 16.0);
+        controls.target.set(0.2, 0.6, -0.5);
+      } else {
+        camera.fov = 45;
+        camera.position.set(2.0, 7.5, 10.0);
+        controls.target.set(1.5, 0.6, 0.0);
+      }
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      controls.update();
+    }
+    setupCameraFraming();
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.15);
+    dirLight.position.set(8, 18, 12);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    scene.add(dirLight);
+
+    const blueLight = new THREE.PointLight(0x0088ff, 0.6, 25);
+    blueLight.position.set(-5, 4, 0);
+    scene.add(blueLight);
+
+    const cyanLight = new THREE.PointLight(0x00f0ff, 0.6, 25);
+    cyanLight.position.set(5, 4, 0);
+    scene.add(cyanLight);
+
+    // Floor
+    const gridHelper = new THREE.GridHelper(36, 36, 0x1e293b, 0x0f172a);
+    gridHelper.position.y = -0.01;
+    scene.add(gridHelper);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(60, 60),
+      new THREE.MeshStandardMaterial({ color: 0x060913, roughness: 0.9, metalness: 0.1 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // Scene Groups Registry
+    const sceneRegistry = {
+      safeGroup: new THREE.Group(),
+      dangerGroup: new THREE.Group(),
+      labelsGroup: new THREE.Group(),
+      safeObjects: {},
+      dangerObjects: {},
+      safeWires: [],
+      dangerWires: [],
+      interactiveMeshes: [],
+      sparks: null
+    };
+    scene.add(sceneRegistry.safeGroup);
+    scene.add(sceneRegistry.dangerGroup);
+    scene.add(sceneRegistry.labelsGroup);
+
+    // 3D Terminal Badge
+    function createTerminalBadge(text, subtext, bgColor, worldPos, heightOffset = 0.55) {
+      const badgeGroup = new THREE.Group();
+      badgeGroup.position.copy(worldPos);
+
+      const cvs = document.createElement('canvas');
+      cvs.width = 256;
+      cvs.height = 96;
+      const ctx = cvs.getContext('2d');
+
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(4, 4, 248, 88);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#ffffff';
+      ctx.strokeRect(4, 4, 248, 88);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, 128, 38);
+
+      if (subtext) {
+        ctx.font = 'bold 20px monospace';
+        ctx.fillStyle = '#facc15';
+        ctx.fillText(subtext, 128, 72);
+      }
+
+      const texture = new THREE.CanvasTexture(cvs);
+      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(1.15, 0.42, 1.0);
+      sprite.position.set(0, heightOffset, 0);
+      badgeGroup.add(sprite);
+
+      const lineGeo = new THREE.CylinderGeometry(0.015, 0.015, heightOffset, 6);
+      const lineMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8 });
+      const leaderLine = new THREE.Mesh(lineGeo, lineMat);
+      leaderLine.position.set(0, heightOffset / 2, 0);
+      badgeGroup.add(leaderLine);
+
+      sceneRegistry.labelsGroup.add(badgeGroup);
+      return badgeGroup;
+    }
+
+    // 1. SONOFF DUAL R2 MODEL
+    function buildSonoffDual(x, z) {
+      const group = new THREE.Group();
+      group.position.set(x, 0.4, z);
+
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4, 0.75, 4.4),
+        new THREE.MeshStandardMaterial({ color: 0xf3f4f6, roughness: 0.35, metalness: 0.05 })
+      );
+      body.castShadow = true;
+      group.add(body);
+
+      const well = new THREE.Mesh(
+        new THREE.BoxGeometry(2.1, 0.5, 1.2),
+        new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.8 })
+      );
+      well.position.set(0, 0.15, 1.4);
+      group.add(well);
+
+      const terminalPoints = [];
+      const sonoffLabels = [
+        { pin: 'Out 2', sub: 'L2 Cerrar', bg: '#b45309' },
+        { pin: 'Out 1', sub: 'L1 Abrir', bg: '#047857' },
+        { pin: 'N', sub: 'Neutro Común', bg: '#1d4ed8' },
+        { pin: 'Nin', sub: '220V Neutro', bg: '#1e40af' },
+        { pin: 'Lin', sub: '220V Fase', bg: '#9a3412' }
+      ];
+
+      for (let i = 0; i < 5; i++) {
+        const tx = -0.8 + i * 0.4;
+        const screw = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.1, 0.1, 0.2, 12),
+          new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.8 })
+        );
+        screw.position.set(tx, 0.35, 1.4);
+        group.add(screw);
+
+        const hole = new THREE.Mesh(
+          new THREE.BoxGeometry(0.24, 0.2, 0.24),
+          new THREE.MeshBasicMaterial({ color: 0x000000 })
+        );
+        hole.position.set(tx, 0.15, 1.95);
+        group.add(hole);
+
+        const wPos = new THREE.Vector3(x + tx, 0.55, z + 1.95);
+        terminalPoints.push(wPos);
+
+        createTerminalBadge(sonoffLabels[i].pin, sonoffLabels[i].sub, sonoffLabels[i].bg, wPos, 0.65 + (i % 2) * 0.35);
+      }
+
+      const labelCvs = document.createElement('canvas');
+      labelCvs.width = 512; labelCvs.height = 512;
+      const lCtx = labelCvs.getContext('2d');
+      lCtx.fillStyle = '#f3f4f6'; lCtx.fillRect(0, 0, 512, 512);
+      lCtx.fillStyle = '#111827'; lCtx.font = 'bold 36px sans-serif';
+      lCtx.textAlign = 'center'; lCtx.fillText('SONOFF DUAL R2', 256, 110);
+      lCtx.font = '20px sans-serif'; lCtx.fillStyle = '#4b5563';
+      lCtx.fillText('2-Channel Wi-Fi Smart Switch', 256, 150);
+      lCtx.fillText('Input: AC 100-240V 50/60Hz', 256, 210);
+      lCtx.fillText('Max: 10A / 2200W por canal', 256, 245);
+      lCtx.fillText('Modo Inching Configurado', 256, 300);
+      lCtx.font = 'bold 22px monospace';
+      lCtx.fillStyle = '#0f172a';
+      lCtx.fillText('Out 2   Out 1     N      Nin     Lin', 256, 455);
+      lCtx.font = '16px monospace';
+      lCtx.fillStyle = '#64748b';
+      lCtx.fillText('(Cierra) (Abre)  (Común)  (220V) (220V)', 256, 485);
+
+      const labelPlate = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.2, 3.8),
+        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(labelCvs) })
+      );
+      labelPlate.rotation.x = -Math.PI / 2;
+      labelPlate.position.set(0, 0.38, -0.15);
+      group.add(labelPlate);
+
+      const wifiLed = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0x00bfff })
+      );
+      wifiLed.position.set(0, 0.4, -1.5);
+      group.add(wifiLed);
+
+      const ch1Led = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0x334155 })
+      );
+      ch1Led.position.set(-0.35, 0.4, -1.0);
+      group.add(ch1Led);
+
+      const ch2Led = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0x334155 })
+      );
+      ch2Led.position.set(0.35, 0.4, -1.0);
+      group.add(ch2Led);
+
+      return { group, terminals: terminalPoints, ch1Led, ch2Led, wifiLed };
+    }
+
+    // 2. POWER SUPPLY 12V 10A MODEL
+    function buildPowerSupply(x, z, labelText = "FUENTE 12V DC") {
+      const group = new THREE.Group();
+      group.position.set(x, 0.5, z);
+
+      const chassis = new THREE.Mesh(
+        new THREE.BoxGeometry(3.2, 1.0, 2.3),
+        new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.85, roughness: 0.35 })
+      );
+      chassis.castShadow = true;
+      group.add(chassis);
+
+      const pCvs = document.createElement('canvas');
+      pCvs.width = 512; pCvs.height = 384;
+      const pCtx = pCvs.getContext('2d');
+      pCtx.fillStyle = '#6b7280'; pCtx.fillRect(0, 0, 512, 384);
+      pCtx.fillStyle = '#1f2937';
+      for (let r = 20; r < 280; r += 16) {
+        for (let c = 20; c < 490; c += 24) {
+          pCtx.beginPath(); pCtx.arc(c, r, 5, 0, Math.PI * 2); pCtx.fill();
+        }
+      }
+      pCtx.fillStyle = '#111827'; pCtx.fillRect(30, 290, 452, 75);
+      pCtx.fillStyle = '#facc15'; pCtx.font = 'bold 26px monospace';
+      pCtx.textAlign = 'center'; pCtx.fillText(labelText + ' 12V 10A (120W)', 256, 335);
+
+      const pPlate = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.0, 2.1),
+        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(pCvs) })
+      );
+      pPlate.rotation.x = -Math.PI / 2;
+      pPlate.position.set(0, 0.51, 0);
+      group.add(pPlate);
+
+      const termWell = new THREE.Mesh(
+        new THREE.BoxGeometry(2.8, 0.4, 0.5),
+        new THREE.MeshStandardMaterial({ color: 0x111827 })
+      );
+      termWell.position.set(0, -0.2, 1.1);
+      group.add(termWell);
+
+      const psuTerminals = {};
+      const labels = [
+        { name: 'L', sub: '220V Fase', bg: '#9a3412' },
+        { name: 'N', sub: '220V Neutro', bg: '#1e40af' },
+        { name: 'GND', sub: '-V (Masa)', bg: '#0f172a' },
+        { name: '+12V', sub: '+V (12V)', bg: '#dc2626' }
+      ];
+
+      for (let i = 0; i < 4; i++) {
+        const tx = -1.0 + i * 0.65;
+        const screw = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.12, 0.12, 0.2, 12),
+          new THREE.MeshStandardMaterial({ color: 0xe5e7eb, metalness: 0.9 })
+        );
+        screw.position.set(tx, 0.05, 1.1);
+        group.add(screw);
+
+        const wPos = new THREE.Vector3(x + tx, 0.55, z + 1.35);
+        psuTerminals[labels[i].name] = wPos;
+
+        createTerminalBadge(labels[i].name, labels[i].sub, labels[i].bg, wPos, 0.65 + (i % 2) * 0.35);
+      }
+
+      const led = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0x10b981 })
+      );
+      led.position.set(1.3, 0.15, 1.1);
+      group.add(led);
+
+      return { group, terminals: psuTerminals };
+    }
+
+    // 3. INDUSTRIAL RELAY LY2NJ (8 PINES 10A DPDT)
+    function buildLY2NJRelay(x, z, name = "RELÉ 1 (ABRE)") {
+      const group = new THREE.Group();
+      group.position.set(x, 0.5, z);
+
+      const baseBox = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 0.45, 2.4),
+        new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.85 })
+      );
+      baseBox.position.set(0, -0.35, 0);
+      group.add(baseBox);
+
+      const dinClip = new THREE.Mesh(
+        new THREE.BoxGeometry(1.4, 0.15, 0.6),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.8 })
+      );
+      dinClip.position.set(0, -0.55, 0);
+      group.add(dinClip);
+
+      const relayCase = new THREE.Mesh(
+        new THREE.BoxGeometry(1.4, 1.1, 1.6),
+        new THREE.MeshPhysicalMaterial({
+          color: 0x0284c7,
+          transparent: true,
+          opacity: 0.5,
+          roughness: 0.1,
+          metalness: 0.1,
+          transmission: 0.85
+        })
+      );
+      relayCase.position.set(0, 0.4, 0);
+      group.add(relayCase);
+
+      const coil = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.32, 0.32, 0.7, 16),
+        new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.85, roughness: 0.3 })
+      );
+      coil.position.set(-0.25, 0.35, -0.15);
+      group.add(coil);
+
+      const armatureGroup = new THREE.Group();
+      armatureGroup.position.set(0.3, 0.65, -0.35);
+      const arm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.1, 0.85),
+        new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.9 })
+      );
+      arm.position.set(0, 0, 0.4);
+      armatureGroup.add(arm);
+      group.add(armatureGroup);
+
+      const led = new THREE.Mesh(
+        new THREE.SphereGeometry(0.07, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0x334155 })
+      );
+      led.position.set(0, 0.1, 0.7);
+      group.add(led);
+
+      const cvs = document.createElement('canvas');
+      cvs.width = 256; cvs.height = 80;
+      const ctx = cvs.getContext('2d');
+      ctx.fillStyle = '#0369a1'; ctx.fillRect(0, 0, 256, 80);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px monospace';
+      ctx.textAlign = 'center'; ctx.fillText(name, 128, 35);
+      ctx.font = '16px monospace'; ctx.fillStyle = '#bae6fd';
+      ctx.fillText('LY2NJ 10A 220VAC (8P)', 128, 65);
+
+      const banner = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.2, 0.5),
+        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cvs) })
+      );
+      banner.rotation.x = -Math.PI / 2;
+      banner.position.set(0, 0.96, 0);
+      group.add(banner);
+
+      const bailGeo = new THREE.TorusGeometry(0.85, 0.025, 8, 24, Math.PI);
+      const bailMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.95 });
+      const bail = new THREE.Mesh(bailGeo, bailMat);
+      bail.rotation.z = Math.PI;
+      bail.position.set(0, 0.9, 0);
+      group.add(bail);
+
+      // EXACT SCREW TERMINALS FOR LY2NJ (8-PIN BASE PTF08A)
+      const terminals = {
+        pin7: new THREE.Vector3(x - 0.45, 0.25, z - 1.15),
+        pin8: new THREE.Vector3(x + 0.45, 0.25, z - 1.15),
+        pin5: new THREE.Vector3(x - 0.45, 0.25, z - 0.35),
+        pin6: new THREE.Vector3(x + 0.45, 0.25, z - 0.35),
+        pin3: new THREE.Vector3(x - 0.45, 0.25, z + 0.45),
+        pin4: new THREE.Vector3(x + 0.45, 0.25, z + 0.45),
+        pin1: new THREE.Vector3(x - 0.45, 0.25, z + 1.15),
+        pin2: new THREE.Vector3(x + 0.45, 0.25, z + 1.15)
+      };
+
+      const screwGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.15, 12);
+      const screwMat = new THREE.MeshStandardMaterial({ color: 0xd4d4d8, metalness: 0.9 });
+
+      const s7 = new THREE.Mesh(screwGeo, screwMat); s7.position.set(-0.45, -0.15, -1.05); group.add(s7);
+      const s8 = new THREE.Mesh(screwGeo, screwMat); s8.position.set(0.45, -0.15, -1.05); group.add(s8);
+      const s5 = new THREE.Mesh(screwGeo, screwMat); s5.position.set(-0.45, -0.15, -0.35); group.add(s5);
+      const s6 = new THREE.Mesh(screwGeo, screwMat); s6.position.set(0.45, -0.15, -0.35); group.add(s6);
+      const s3 = new THREE.Mesh(screwGeo, screwMat); s3.position.set(-0.45, -0.15, 0.45); group.add(s3);
+      const s4 = new THREE.Mesh(screwGeo, screwMat); s4.position.set(0.45, -0.15, 0.45); group.add(s4);
+      const s1 = new THREE.Mesh(screwGeo, screwMat); s1.position.set(-0.45, -0.15, 1.05); group.add(s1);
+      const s2 = new THREE.Mesh(screwGeo, screwMat); s2.position.set(0.45, -0.15, 1.05); group.add(s2);
+
+      const isRelay1 = name.includes('1');
+
+      createTerminalBadge(
+        'Pin 7 (A1)',
+        isRelay1 ? 'Fase Out1 (Abre)' : 'Fase Out2 (Cierra)',
+        isRelay1 ? '#047857' : '#b45309',
+        terminals.pin7,
+        0.65
+      );
+      createTerminalBadge('Pin 8 (A2)', 'Neutro 220V', '#1d4ed8', terminals.pin8, 0.85);
+      createTerminalBadge('Pin 5 (COM)', isRelay1 ? 'Al Cable 1 Actuador' : 'Al Cable 2 Actuador', '#0284c7', terminals.pin5, 0.65);
+      createTerminalBadge('Pin 3 (NO)', 'A +12V Fuente', '#dc2626', terminals.pin3, 0.85);
+      createTerminalBadge('Pin 1 (NC)', 'A GND Masa', '#0f172a', terminals.pin1, 0.65);
+
+      return { group, terminals, armature: armatureGroup, led };
+    }
+
+    // 4. TELESCOPIC ACTUATOR MODEL
+    function buildTelescopicActuator(baseX, baseZ) {
+      const mainGroup = new THREE.Group();
+      mainGroup.position.set(baseX, 0.65, baseZ);
+
+      const rulerCvs = document.createElement('canvas');
+      rulerCvs.width = 512; rulerCvs.height = 64;
+      const rctx = rulerCvs.getContext('2d');
+      rctx.fillStyle = '#0f172a'; rctx.fillRect(0, 0, 512, 64);
+      rctx.fillStyle = '#0284c7'; rctx.fillRect(0, 0, 512, 4);
+      rctx.fillStyle = '#38bdf8'; rctx.font = 'bold 20px monospace';
+      for (let m = 0; m <= 300; m += 50) {
+        const xPos = (m / 300) * 450 + 20;
+        rctx.fillRect(xPos, 4, 3, 20);
+        rctx.fillText(m + 'mm', xPos - 20, 50);
+      }
+      const rulerPlate = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.6, 0.45),
+        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(rulerCvs) })
+      );
+      rulerPlate.rotation.x = -Math.PI / 2;
+      rulerPlate.position.set(3.4, -0.64, 0.6);
+      mainGroup.add(rulerPlate);
+
+      const mountBracket = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 0.45, 0.9),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8 })
+      );
+      mountBracket.position.set(-2.4, -0.3, 0);
+      mainGroup.add(mountBracket);
+
+      const motorBody = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.55, 0.55, 1.5, 20),
+        new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 })
+      );
+      motorBody.rotation.x = Math.PI / 2;
+      motorBody.position.set(-1.8, 0.35, 0);
+      mainGroup.add(motorBody);
+
+      const gearbox = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 0.8, 0.9),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 })
+      );
+      gearbox.position.set(-1.8, 0, 0);
+      mainGroup.add(gearbox);
+
+      const outerCylGeo = new THREE.CylinderGeometry(0.44, 0.44, 3.2, 28);
+      outerCylGeo.rotateZ(-Math.PI / 2);
+      const outerCyl = new THREE.Mesh(
+        outerCylGeo,
+        new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.3 })
+      );
+      outerCyl.position.set(0.4, 0, 0);
+      mainGroup.add(outerCyl);
+
+      const collarRingGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 28);
+      collarRingGeo.rotateZ(-Math.PI / 2);
+      const collarRing = new THREE.Mesh(
+        collarRingGeo,
+        new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.9, roughness: 0.2 })
+      );
+      collarRing.position.set(2.0, 0, 0);
+      mainGroup.add(collarRing);
+
+      const sealMesh = new THREE.Mesh(
+        new THREE.TorusGeometry(0.32, 0.06, 16, 28),
+        new THREE.MeshBasicMaterial({ color: 0x000000 })
+      );
+      sealMesh.rotation.y = Math.PI / 2;
+      sealMesh.position.set(2.15, 0, 0);
+      mainGroup.add(sealMesh);
+
+      const rodGroup = new THREE.Group();
+      rodGroup.position.set(0.45, 0, 0);
+
+      const rodGeo = new THREE.CylinderGeometry(0.28, 0.28, 3.2, 32);
+      rodGeo.rotateZ(-Math.PI / 2);
+      const rodMesh = new THREE.Mesh(
+        rodGeo,
+        new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.98, roughness: 0.04 })
+      );
+      rodGroup.add(rodMesh);
+
+      for (let i = 1; i <= 6; i++) {
+        const rx = 1.6 - (i * 0.48);
+        const ringMark = new THREE.Mesh(
+          new THREE.TorusGeometry(0.285, 0.015, 8, 28),
+          new THREE.MeshBasicMaterial({ color: 0x0284c7 })
+        );
+        ringMark.rotation.y = Math.PI / 2;
+        ringMark.position.set(rx, 0, 0);
+        rodGroup.add(ringMark);
+      }
+
+      const tipClevis = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.34, 0.34, 0.35, 20),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9 })
+      );
+      tipClevis.rotation.z = -Math.PI / 2;
+      tipClevis.position.set(1.7, 0, 0);
+      rodGroup.add(tipClevis);
+
+      const frontEyelet = new THREE.Mesh(
+        new THREE.TorusGeometry(0.24, 0.09, 12, 24),
+        new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.95 })
+      );
+      frontEyelet.rotation.y = Math.PI / 2;
+      frontEyelet.position.set(1.95, 0, 0);
+      rodGroup.add(frontEyelet);
+
+      const glowTip = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0x06b6d4 })
+      );
+      glowTip.position.set(1.95, 0.3, 0);
+      rodGroup.add(glowTip);
+
+      mainGroup.add(rodGroup);
+
+      const arrowExtGeo = new THREE.ConeGeometry(0.25, 0.6, 16);
+      arrowExtGeo.rotateZ(-Math.PI / 2);
+      const arrowExt = new THREE.Mesh(arrowExtGeo, new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+      arrowExt.position.set(2.4, 0.8, 0);
+      arrowExt.visible = false;
+      mainGroup.add(arrowExt);
+
+      const arrowRetGeo = new THREE.ConeGeometry(0.25, 0.6, 16);
+      arrowRetGeo.rotateZ(Math.PI / 2);
+      const arrowRet = new THREE.Mesh(arrowRetGeo, new THREE.MeshBasicMaterial({ color: 0xf59e0b }));
+      arrowRet.position.set(2.4, 0.8, 0);
+      arrowRet.visible = false;
+      mainGroup.add(arrowRet);
+
+      const gateGroup = new THREE.Group();
+      gateGroup.position.set(5.8, 0, 2.0);
+
+      const hingePost = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.18, 2.6, 16),
+        new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8 })
+      );
+      hingePost.position.set(0, 0.9, 0);
+      gateGroup.add(hingePost);
+
+      const gatePanel = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4, 2.0, 0.14),
+        new THREE.MeshStandardMaterial({
+          color: 0x0284c7,
+          metalness: 0.3,
+          roughness: 0.4,
+          transparent: true,
+          opacity: 0.85
+        })
+      );
+      gatePanel.position.set(-1.2, 0.9, 0);
+      gateGroup.add(gatePanel);
+
+      const gateBracket = new THREE.Mesh(
+        new THREE.BoxGeometry(0.35, 0.25, 0.35),
+        new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9 })
+      );
+      gateBracket.position.set(-0.8, 0, 0);
+      gateGroup.add(gateBracket);
+
+      mainGroup.add(gateGroup);
+
+      const linkArm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, 1.2, 12),
+        new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9 })
+      );
+      mainGroup.add(linkArm);
+
+      const hudCvs = document.createElement('canvas');
+      hudCvs.width = 512; hudCvs.height = 128;
+      const hudCtx = hudCvs.getContext('2d');
+      const hudTex = new THREE.CanvasTexture(hudCvs);
+      const hudSprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: hudTex, transparent: true })
+      );
+      hudSprite.scale.set(3.6, 0.9, 1.0);
+      hudSprite.position.set(2.2, 1.9, 0);
+      mainGroup.add(hudSprite);
+
+      const termM1 = new THREE.Vector3(baseX - 1.8, 1.2, baseZ + 0.3);
+      const termM2 = new THREE.Vector3(baseX - 1.8, 1.2, baseZ - 0.3);
+
+      createTerminalBadge('Cable 1 (M1)', 'Azul ➔ Pin 5 Relé 1', '#047857', termM1, 0.65);
+      createTerminalBadge('Cable 2 (M2)', 'Marrón ➔ Pin 5 Relé 2', '#b45309', termM2, 0.85);
+
+      return {
+        group: mainGroup,
+        terminals: { M1: termM1, M2: termM2 },
+        innerRodMesh: rodGroup,
+        arrowExt,
+        arrowRet,
+        hingedDoor: gateGroup,
+        linkageBar: linkArm,
+        hudContext: hudCtx,
+        hudTexture: hudTex
+      };
+    }
+
+    function createWire(curvePoints, colorHex, id, meta = {}) {
+      const curve = new THREE.CatmullRomCurve3(curvePoints);
+      const tubeGeo = new THREE.TubeGeometry(curve, 36, 0.05, 8, false);
+      const tubeMat = new THREE.MeshStandardMaterial({
+        color: colorHex,
+        roughness: 0.45,
+        metalness: 0.15
+      });
+      const mesh = new THREE.Mesh(tubeGeo, tubeMat);
+
+      const particleCount = 14;
+      const pGeo = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      for (let i = 0; i < particleCount * 3; i++) positions[i] = 0;
+      pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+      const pMat = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.18,
+        transparent: true,
+        opacity: 0.95
+      });
+      const particles = new THREE.Points(pGeo, pMat);
+      particles.visible = false;
+
+      const wireObj = {
+        id,
+        meta,
+        mesh,
+        particles,
+        curve,
+        colorHex,
+        active: false,
+        direction: 1,
+        offset: 0
+      };
+
+      mesh.userData = { isWire: true, wireObj };
+      sceneRegistry.interactiveMeshes.push(mesh);
+
+      return wireObj;
+    }
+
+    // BUILD SCENES
+    function buildSafeScene() {
+      const sonoff = buildSonoffDual(-5.0, -0.5);
+      sceneRegistry.safeGroup.add(sonoff.group);
+
+      const psu = buildPowerSupply(-0.5, -3.5, "FUENTE 12V");
+      sceneRegistry.safeGroup.add(psu.group);
+
+      const relay1 = buildLY2NJRelay(-1.8, 0.5, "RELÉ 1 (ABRE)");
+      sceneRegistry.safeGroup.add(relay1.group);
+
+      const relay2 = buildLY2NJRelay(1.2, 0.5, "RELÉ 2 (CIERRA)");
+      sceneRegistry.safeGroup.add(relay2.group);
+
+      const actuator = buildTelescopicActuator(4.4, 0.5);
+      sceneRegistry.safeGroup.add(actuator.group);
+
+      sceneRegistry.safeObjects = { sonoff, psu, relay1, relay2, actuator };
+
+      const mainsL = new THREE.Vector3(-8.5, 0.1, -1.0);
+      const mainsN = new THREE.Vector3(-8.5, 0.1, -0.5);
+
+      sceneRegistry.safeWires.push(createWire([mainsL, new THREE.Vector3(-7.0, 0.1, -0.5), sonoff.terminals[4]], 0x9a3412, 'mains-L', {
+        code: 'C1',
+        from: 'Red 220V (Fase)',
+        to: 'Sonoff Dual: Borne Lin',
+        signal: '220V AC Permanente',
+        colorName: 'Marrón (Fase)',
+        gauge: '1.5 mm²',
+        desc: 'Alimentación Fase de 220V al interruptor Sonoff Dual.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([mainsN, new THREE.Vector3(-7.0, 0.1, 0.0), sonoff.terminals[3]], 0x1e40af, 'mains-N', {
+        code: 'C2',
+        from: 'Red 220V (Neutro)',
+        to: 'Sonoff Dual: Borne Nin',
+        signal: '220V AC Permanente',
+        colorName: 'Azul (Neutro)',
+        gauge: '1.5 mm²',
+        desc: 'Alimentación Neutro de 220V al interruptor Sonoff Dual.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([sonoff.terminals[4], new THREE.Vector3(-4.0, 0.1, -2.5), psu.terminals['L']], 0x9a3412, 'psu-L', {
+        code: 'C3',
+        from: 'Sonoff Borne Lin (o Red L)',
+        to: 'Fuente 12V: Borne L',
+        signal: '220V AC Permanente',
+        colorName: 'Marrón (Fase)',
+        gauge: '1.5 mm²',
+        desc: 'Entrada de 220V permanente a la fuente de poder de 12V.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([sonoff.terminals[3], new THREE.Vector3(-3.5, 0.1, -2.0), psu.terminals['N']], 0x1e40af, 'psu-N', {
+        code: 'C4',
+        from: 'Sonoff Borne Nin (o Red N)',
+        to: 'Fuente 12V: Borne N',
+        signal: '220V AC Permanente',
+        colorName: 'Azul (Neutro)',
+        gauge: '1.5 mm²',
+        desc: 'Retorno de Neutro de 220V a la fuente de poder.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([sonoff.terminals[1], new THREE.Vector3(-3.2, 0.2, 0.0), relay1.terminals.pin7], 0xd97706, 'sonoff-out1', {
+        code: 'C5',
+        from: 'Sonoff Dual: Borne Out 1',
+        to: 'Relé 1 (LY2NJ): Pin 7 (Bobina A1)',
+        signal: '220V AC Conmutada (Canal 1)',
+        colorName: 'Naranja / Negro',
+        gauge: '1.0 mm²',
+        desc: 'Al pulsar Canal 1 (Abrir) en eWeLink, energiza la bobina del Relé 1 durante el tiempo de Inching.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([sonoff.terminals[0], new THREE.Vector3(-3.2, 0.1, 1.5), new THREE.Vector3(-0.5, 0.1, 1.2), relay2.terminals.pin7], 0xd97706, 'sonoff-out2', {
+        code: 'C6',
+        from: 'Sonoff Dual: Borne Out 2',
+        to: 'Relé 2 (LY2NJ): Pin 7 (Bobina A1)',
+        signal: '220V AC Conmutada (Canal 2)',
+        colorName: 'Amarillo / Gris',
+        gauge: '1.0 mm²',
+        desc: 'Al pulsar Canal 2 (Cerrar) en eWeLink, energiza la bobina del Relé 2 durante el tiempo de Inching.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([sonoff.terminals[2], new THREE.Vector3(-3.5, 0.1, -0.8), relay1.terminals.pin8], 0x2563eb, 'coil-N1', {
+        code: 'C7',
+        from: 'Sonoff Dual: Borne N (Neutro)',
+        to: 'Relé 1 (LY2NJ): Pin 8 (Bobina A2)',
+        signal: 'Neutro 220V Común',
+        colorName: 'Azul',
+        gauge: '1.0 mm²',
+        desc: 'Retorno de Neutro para cerrar el circuito de la bobina de 220V del Relé 1.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([relay1.terminals.pin8, new THREE.Vector3(-0.3, 0.1, -0.5), relay2.terminals.pin8], 0x2563eb, 'coil-N2', {
+        code: 'C8',
+        from: 'Relé 1: Pin 8 (Bobina A2)',
+        to: 'Relé 2: Pin 8 (Bobina A2)',
+        signal: 'Puente Neutro Bobinas',
+        colorName: 'Azul (Puente)',
+        gauge: '1.0 mm²',
+        desc: 'Puente directo de neutro entre el Pin 8 del Relé 1 y el Pin 8 del Relé 2.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([psu.terminals['+12V'], new THREE.Vector3(-0.5, 0.1, -1.8), relay1.terminals.pin3], 0xef4444, '12v-plus-r1', {
+        code: 'C9',
+        from: 'Fuente 12V: Borne +V (+12V)',
+        to: 'Relé 1 (LY2NJ): Pin 3 (NO)',
+        signal: '+12V DC Potencia (10A)',
+        colorName: 'Rojo (Positivo 12V)',
+        gauge: '1.5 mm²',
+        desc: 'Alimenta el contacto Normalmente Abierto del Relé 1 con 12V constantes.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([psu.terminals['+12V'], new THREE.Vector3(0.8, 0.1, -1.5), relay2.terminals.pin3], 0xef4444, '12v-plus-r2', {
+        code: 'C10',
+        from: 'Fuente 12V: Borne +V (+12V)',
+        to: 'Relé 2 (LY2NJ): Pin 3 (NO)',
+        signal: '+12V DC Potencia (10A)',
+        colorName: 'Rojo (Positivo 12V)',
+        gauge: '1.5 mm²',
+        desc: 'Alimenta el contacto Normalmente Abierto del Relé 2 con 12V constantes.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([psu.terminals['GND'], new THREE.Vector3(-0.8, 0.1, -1.5), relay1.terminals.pin1], 0x18181b, '12v-gnd-r1', {
+        code: 'C11',
+        from: 'Fuente 12V: Borne -V (GND)',
+        to: 'Relé 1 (LY2NJ): Pin 1 (NC)',
+        signal: '0V GND Masa (Freno)',
+        colorName: 'Negro (Masa 0V)',
+        gauge: '1.5 mm²',
+        desc: 'Conecta el contacto Normalmente Cerrado del Relé 1 a masa (freno seguro en reposo).'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([psu.terminals['GND'], new THREE.Vector3(0.5, 0.1, -1.5), relay2.terminals.pin1], 0x18181b, '12v-gnd-r2', {
+        code: 'C12',
+        from: 'Fuente 12V: Borne -V (GND)',
+        to: 'Relé 2 (LY2NJ): Pin 1 (NC)',
+        signal: '0V GND Masa (Freno)',
+        colorName: 'Negro (Masa 0V)',
+        gauge: '1.5 mm²',
+        desc: 'Conecta el contacto Normalmente Cerrado del Relé 2 a masa (freno seguro en reposo).'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([relay1.terminals.pin5, new THREE.Vector3(-0.5, 0.1, 1.8), new THREE.Vector3(1.5, 0.1, 1.8), actuator.terminals.M1], 0x10b981, 'actuator-wire1', {
+        code: 'C13',
+        from: 'Relé 1 (LY2NJ): Pin 5 (COM)',
+        to: 'Actuador: Cable 1 (Azul / M1)',
+        signal: 'Polo 1 Motor (+12V Abre / 0V)',
+        colorName: 'Verde / Azul Motor',
+        gauge: '1.5 mm²',
+        desc: 'Salida de potencia conmutada hacia el primer cable del motor del actuador.'
+      }));
+
+      sceneRegistry.safeWires.push(createWire([relay2.terminals.pin5, new THREE.Vector3(2.0, 0.1, 1.2), actuator.terminals.M2], 0xf59e0b, 'actuator-wire2', {
+        code: 'C14',
+        from: 'Relé 2 (LY2NJ): Pin 5 (COM)',
+        to: 'Actuador: Cable 2 (Marrón / M2)',
+        signal: 'Polo 2 Motor (+12V Cierra / 0V)',
+        colorName: 'Violeta / Marrón Motor',
+        gauge: '1.5 mm²',
+        desc: 'Salida de potencia conmutada hacia el segundo cable del motor del actuador.'
+      }));
+
+      sceneRegistry.safeWires.forEach(w => {
+        sceneRegistry.safeGroup.add(w.mesh);
+        sceneRegistry.safeGroup.add(w.particles);
+      });
+    }
+
+    function buildDangerScene() {
+      const sonoffD = buildSonoffDual(-5.0, -0.5);
+      sceneRegistry.dangerGroup.add(sonoffD.group);
+
+      const psu1D = buildPowerSupply(-0.5, -2.5, "FUENTE 1 (CH1)");
+      sceneRegistry.dangerGroup.add(psu1D.group);
+
+      const psu2D = buildPowerSupply(-0.5, 2.0, "FUENTE 2 (CH2)");
+      sceneRegistry.dangerGroup.add(psu2D.group);
+
+      const actuatorD = buildTelescopicActuator(4.4, 0.0);
+      sceneRegistry.dangerGroup.add(actuatorD.group);
+
+      sceneRegistry.dangerObjects = { sonoff: sonoffD, psu1: psu1D, psu2: psu2D, actuator: actuatorD };
+
+      sceneRegistry.dangerWires.push(createWire([sonoffD.terminals[1], psu1D.terminals['L']], 0xd97706, 'd-out1'));
+      sceneRegistry.dangerWires.push(createWire([sonoffD.terminals[2], psu1D.terminals['N']], 0x2563eb, 'd-n1'));
+
+      sceneRegistry.dangerWires.push(createWire([sonoffD.terminals[0], psu2D.terminals['L']], 0xd97706, 'd-out2'));
+      sceneRegistry.dangerWires.push(createWire([sonoffD.terminals[3], psu2D.terminals['N']], 0x2563eb, 'd-n2'));
+
+      sceneRegistry.dangerWires.push(createWire([psu1D.terminals['+12V'], new THREE.Vector3(2.0, 0.1, -1.0), actuatorD.terminals.M1], 0xef4444, 'd-12v-1'));
+      sceneRegistry.dangerWires.push(createWire([psu1D.terminals['GND'], new THREE.Vector3(2.0, 0.1, -0.5), actuatorD.terminals.M2], 0x18181b, 'd-gnd-1'));
+
+      sceneRegistry.dangerWires.push(createWire([psu2D.terminals['+12V'], new THREE.Vector3(2.0, 0.1, 0.5), actuatorD.terminals.M2], 0xef4444, 'd-12v-2-short'));
+      sceneRegistry.dangerWires.push(createWire([psu2D.terminals['GND'], new THREE.Vector3(2.0, 0.1, 1.0), actuatorD.terminals.M1], 0x18181b, 'd-gnd-2-short'));
+
+      sceneRegistry.dangerWires.forEach(w => {
+        sceneRegistry.dangerGroup.add(w.mesh);
+        sceneRegistry.dangerGroup.add(w.particles);
+      });
+
+      const sparkCount = 40;
+      const sGeo = new THREE.BufferGeometry();
+      const sPos = new Float32Array(sparkCount * 3);
+      for (let i = 0; i < sparkCount * 3; i++) sPos[i] = 0;
+      sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+      const sMat = new THREE.PointsMaterial({ color: 0xffaa00, size: 0.25, transparent: true, opacity: 0 });
+      const sparkMesh = new THREE.Points(sGeo, sMat);
+      sparkMesh.position.set(-0.5, 0.8, 2.0);
+      sceneRegistry.dangerGroup.add(sparkMesh);
+      sceneRegistry.sparks = { mesh: sparkMesh, active: false, time: 0 };
+
+      sceneRegistry.dangerGroup.visible = false;
+    }
+
+    buildSafeScene();
+    buildDangerScene();
+
+    // POPULATE WIRING TABLE
+    const tableBody = document.getElementById('wiring-table-body');
+    sceneRegistry.safeWires.forEach(wire => {
+      const m = wire.meta;
+      if (!m || !m.code) return;
+
+      const tr = document.createElement('tr');
+      tr.className = "hover:bg-slate-800/80 cursor-pointer transition text-slate-300 group";
+      tr.innerHTML = `
+        <td class="p-2 font-bold text-cyan-400 group-hover:text-cyan-300">${m.code}</td>
+        <td class="p-2 text-slate-200">${m.from}</td>
+        <td class="p-2 text-slate-200">${m.to}</td>
+        <td class="p-2 text-amber-300">${m.signal}</td>
+        <td class="p-2 text-slate-300 font-sans">${m.colorName}</td>
+        <td class="p-2 text-slate-400">${m.gauge}</td>
+      `;
+
+      tr.addEventListener('click', () => {
+        highlightWire(wire);
+        wiringModal.classList.add('hidden');
+      });
+
+      tableBody.appendChild(tr);
+    });
+
+    function highlightWire(wire) {
+      const center = wire.curve.getPointAt(0.5);
+      gsapMoveCamera(center.x + 1.2, center.y + 3.0, center.z + 3.5, center.x, center.y, center.z);
+
+      const origColor = wire.colorHex;
+      wire.mesh.material.color.setHex(0x00ffff);
+      wire.mesh.scale.set(1.5, 1.5, 1.5);
+
+      setTimeout(() => {
+        wire.mesh.material.color.setHex(origColor);
+        wire.mesh.scale.set(1.0, 1.0, 1.0);
+      }, 2000);
+    }
+
+    // UI ELEMENTS
+    const btnToggleLabels = document.getElementById('btn-toggle-labels');
+    const labelsStatusText = document.getElementById('labels-status-text');
+    const btnOpenWiring = document.getElementById('btn-open-wiring');
+    const wiringModal = document.getElementById('wiring-modal');
+    const btnCloseWiring = document.getElementById('btn-close-wiring');
+    const btnCloseWiring2 = document.getElementById('btn-close-wiring-2');
+    const btnModeToggle = document.getElementById('btn-mode-toggle');
+    const modeLed = document.getElementById('mode-led');
+    const modeText = document.getElementById('mode-text');
+    const dangerModal = document.getElementById('danger-modal');
+    const btnCloseDanger = document.getElementById('btn-close-danger');
+    const infoModal = document.getElementById('info-modal');
+    const btnCloseInfo = document.getElementById('btn-close-info');
+    const btnCloseInfo2 = document.getElementById('btn-close-info-2');
+    const hoverTooltip = document.getElementById('hover-tooltip');
+    const tooltipTitle = document.getElementById('tooltip-title');
+    const tooltipDesc = document.getElementById('tooltip-desc');
+    const mobileMiniStatus = document.getElementById('mobile-mini-status');
+
+    // Drawer Elements
+    const mobileDrawer = document.getElementById('mobile-drawer');
+    const mobileDrawerToggle = document.getElementById('mobile-drawer-toggle');
+    const mobileDrawerChevron = document.getElementById('mobile-drawer-chevron');
+    const mobileDrawerContent = document.getElementById('mobile-drawer-content');
+    const tabBtnCtrl = document.getElementById('tab-btn-ctrl');
+    const tabBtnInfo = document.getElementById('tab-btn-info');
+    const tabBtnCam = document.getElementById('tab-btn-cam');
+    const tabPaneCtrl = document.getElementById('tab-pane-ctrl');
+    const tabPaneInfo = document.getElementById('tab-pane-info');
+    const tabPaneCam = document.getElementById('tab-pane-cam');
+
+    // Mobile Drawer Toggle Collapse/Expand
+    mobileDrawerToggle.addEventListener('click', (e) => {
+      // Ignore if sound button was clicked
+      if (e.target.closest('.btn-sound-toggle')) return;
+      state.mobileDrawerOpen = !state.mobileDrawerOpen;
+      if (state.mobileDrawerOpen) {
+        mobileDrawerContent.classList.remove('hidden');
+        document.getElementById('mobile-tabs-header').classList.remove('hidden');
+        mobileDrawerChevron.textContent = '▼';
+      } else {
+        mobileDrawerContent.classList.add('hidden');
+        document.getElementById('mobile-tabs-header').classList.add('hidden');
+        mobileDrawerChevron.textContent = '▲';
+      }
+    });
+
+    // Mobile Tabs Switching
+    function setMobileTab(tab) {
+      sound.click();
+      [tabBtnCtrl, tabBtnInfo, tabBtnCam].forEach(b => {
+        b.classList.remove('bg-cyan-600', 'text-white');
+        b.classList.add('text-slate-400');
+      });
+      [tabPaneCtrl, tabPaneInfo, tabPaneCam].forEach(p => p.classList.add('hidden'));
+
+      if (tab === 'ctrl') {
+        tabBtnCtrl.classList.add('bg-cyan-600', 'text-white');
+        tabPaneCtrl.classList.remove('hidden');
+      } else if (tab === 'info') {
+        tabBtnInfo.classList.add('bg-cyan-600', 'text-white');
+        tabPaneInfo.classList.remove('hidden');
+      } else if (tab === 'cam') {
+        tabBtnCam.classList.add('bg-cyan-600', 'text-white');
+        tabPaneCam.classList.remove('hidden');
+      }
+    }
+    tabBtnCtrl.addEventListener('click', () => setMobileTab('ctrl'));
+    tabBtnInfo.addEventListener('click', () => setMobileTab('info'));
+    tabBtnCam.addEventListener('click', () => setMobileTab('cam'));
+
+    // Toggle 3D Labels
+    btnToggleLabels.addEventListener('click', () => {
+      sound.click();
+      state.showLabels = !state.showLabels;
+      sceneRegistry.labelsGroup.visible = state.showLabels;
+      labelsStatusText.textContent = state.showLabels ? 'ON' : 'OFF';
+      labelsStatusText.className = state.showLabels ? 'text-emerald-400 text-[11px]' : 'text-slate-500 text-[11px]';
+    });
+
+    // Toggle Mode Safe / Danger
+    btnModeToggle.addEventListener('click', () => {
+      sound.click();
+      if (state.mode === 'safe') {
+        state.mode = 'danger';
+        state.ch1 = false;
+        state.ch2 = false;
+        sceneRegistry.safeGroup.visible = false;
+        sceneRegistry.dangerGroup.visible = true;
+        modeLed.className = "w-2 h-2 rounded-full bg-red-500";
+        modeText.textContent = "Modo 2 Fuentes";
+        btnModeToggle.className = "glass-panel px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-red-500/50 bg-red-950/40 text-red-200 active:scale-95";
+      } else {
+        state.mode = 'safe';
+        state.ch1 = false;
+        state.ch2 = false;
+        sceneRegistry.safeGroup.visible = true;
+        sceneRegistry.dangerGroup.visible = false;
+        modeLed.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+        modeText.textContent = "Modo Seguro";
+        btnModeToggle.className = "glass-panel px-2.5 py-1.5 md:px-3 md:py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 active:scale-95";
+      }
+      updateUI();
+    });
+
+    // Modals Handlers
+    btnOpenWiring.addEventListener('click', () => { sound.click(); wiringModal.classList.remove('hidden'); });
+    btnCloseWiring.addEventListener('click', () => { sound.click(); wiringModal.classList.add('hidden'); });
+    btnCloseWiring2.addEventListener('click', () => { sound.click(); wiringModal.classList.add('hidden'); });
+
+    document.querySelectorAll('.btn-info-modal-trigger').forEach(b => {
+      b.addEventListener('click', () => { sound.click(); infoModal.classList.remove('hidden'); });
+    });
+    btnCloseInfo.addEventListener('click', () => { sound.click(); infoModal.classList.add('hidden'); });
+    btnCloseInfo2.addEventListener('click', () => { sound.click(); infoModal.classList.add('hidden'); });
+
+    btnCloseDanger.addEventListener('click', () => {
+      sound.click();
+      dangerModal.classList.add('hidden');
+      state.ch1 = false;
+      state.ch2 = false;
+      updateUI();
+    });
+
+    // Sound toggle
+    document.querySelectorAll('.btn-sound-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sound.enabled = !sound.enabled;
+        document.querySelectorAll('.btn-sound-toggle').forEach(b => b.textContent = sound.enabled ? '🔊' : '🔇');
+        if (!sound.enabled) sound.stopMotor();
+      });
+    });
+
+    // Channel 1 Action (Desktop + Mobile)
+    document.querySelectorAll('.btn-ch1-action').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sound.click();
+        if (state.mode === 'danger') { triggerDangerShort(); return; }
+        sound.relaySnap();
+        if (state.ch1) {
+          state.ch1 = false;
+          state.ch1Timer = 0;
+        } else {
+          state.ch1 = true;
+          state.ch2 = false;
+          state.ch1Timer = state.inchingDuration;
+          state.ch2Timer = 0;
+        }
+        updateUI();
+      });
+    });
+
+    // Channel 2 Action (Desktop + Mobile)
+    document.querySelectorAll('.btn-ch2-action').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sound.click();
+        if (state.mode === 'danger') { triggerDangerShort(); return; }
+        sound.relaySnap();
+        if (state.ch2) {
+          state.ch2 = false;
+          state.ch2Timer = 0;
+        } else {
+          state.ch2 = true;
+          state.ch1 = false;
+          state.ch2Timer = state.inchingDuration;
+          state.ch1Timer = 0;
+        }
+        updateUI();
+      });
+    });
+
+    // Stop Action
+    document.querySelectorAll('.btn-stop-action').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sound.click();
+        state.ch1 = false;
+        state.ch2 = false;
+        state.ch1Timer = 0;
+        state.ch2Timer = 0;
+        updateUI();
+      });
+    });
+
+    // Both Action
+    document.querySelectorAll('.btn-both-action').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sound.click();
+        if (state.mode === 'danger') { triggerDangerShort(); return; }
+        sound.relaySnap();
+        state.ch1 = true;
+        state.ch2 = true;
+        updateUI();
+      });
+    });
+
+    // Timer Sliders Sync
+    document.querySelectorAll('.timer-slider-input').forEach(input => {
+      input.addEventListener('input', (e) => {
+        state.inchingDuration = parseFloat(e.target.value);
+        document.querySelectorAll('.timer-slider-input').forEach(i => i.value = state.inchingDuration);
+        document.querySelectorAll('.timer-setting-text').forEach(t => t.textContent = state.inchingDuration + ' segundos');
+        document.querySelectorAll('.timer-display-val').forEach(t => t.textContent = state.inchingDuration + 's');
+      });
+    });
+
+    // Rod Sliders Sync
+    document.querySelectorAll('.rod-slider-input').forEach(input => {
+      input.addEventListener('input', (e) => {
+        state.ch1 = false;
+        state.ch2 = false;
+        state.ch1Timer = 0;
+        state.ch2Timer = 0;
+        state.actuatorPos = parseFloat(e.target.value) / 300.0;
+        document.querySelectorAll('.rod-slider-input').forEach(i => i.value = e.target.value);
+        updateUI();
+      });
+    });
+
+    // Camera Quick Buttons (Desktop + Mobile)
+    document.querySelectorAll('.cam-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sound.click();
+        const type = btn.dataset.cam;
+        if (type === 'actuador') {
+          gsapMoveCamera(4.4, 4.0, 6.0, 4.8, 0.6, 0.5);
+        } else if (type === 'general') {
+          setupCameraFraming();
+        } else if (type === 'reles') {
+          gsapMoveCamera(-0.3, 3.2, 3.2, -0.3, 0.6, 0.5);
+        } else if (type === 'sonoff') {
+          gsapMoveCamera(-5.0, 3.2, 2.5, -5.0, 0.5, -0.5);
+        } else if (type === 'fuente') {
+          gsapMoveCamera(-0.5, 3.2, -1.2, -0.5, 0.6, -3.2);
+        }
+      });
+    });
+
+    function gsapMoveCamera(px, py, pz, tx, ty, tz) {
+      const startPos = camera.position.clone();
+      const startTarget = controls.target.clone();
+      const endPos = new THREE.Vector3(px, py, pz);
+      const endTarget = new THREE.Vector3(tx, ty, tz);
+      let t = 0;
+      const step = () => {
+        t += 0.045;
+        camera.position.lerpVectors(startPos, endPos, t);
+        controls.target.lerpVectors(startTarget, endTarget, t);
+        controls.update();
+        if (t < 1) requestAnimationFrame(step);
+      };
+      step();
+    }
+
+    function triggerDangerShort() {
+      sound.spark();
+      state.ch1 = true;
+      if (sceneRegistry.sparks) {
+        sceneRegistry.sparks.active = true;
+        sceneRegistry.sparks.time = 0;
+      }
+      updateUI();
+      setTimeout(() => {
+        dangerModal.classList.remove('hidden');
+      }, 450);
+    }
+
+    function updateUI() {
+      // Sync CH1 buttons & LEDs
+      document.querySelectorAll('.btn-ch1-action').forEach(btn => {
+        if (state.ch1) {
+          btn.classList.add('bg-emerald-950/90', 'border-emerald-500', 'glow-emerald');
+        } else {
+          btn.classList.remove('bg-emerald-950/90', 'border-emerald-500', 'glow-emerald');
+        }
+      });
+      document.querySelectorAll('.led-btn-ch1').forEach(led => {
+        led.className = state.ch1 ? 'led-btn-ch1 w-3 h-3 rounded-full bg-emerald-400 animate-pulse transition-all' : 'led-btn-ch1 w-3 h-3 rounded-full bg-slate-600 transition-all';
+      });
+      document.querySelectorAll('.countdown-ch1').forEach(cnt => {
+        cnt.className = state.ch1 ? 'countdown-ch1 text-[10px] font-mono text-emerald-300 block' : 'countdown-ch1 text-[10px] font-mono text-emerald-300 hidden';
+        cnt.textContent = state.ch1Timer.toFixed(1) + 's';
+      });
+
+      // Sync CH2 buttons & LEDs
+      document.querySelectorAll('.btn-ch2-action').forEach(btn => {
+        if (state.ch2) {
+          btn.classList.add('bg-amber-950/90', 'border-amber-500', 'glow-amber');
+        } else {
+          btn.classList.remove('bg-amber-950/90', 'border-amber-500', 'glow-amber');
+        }
+      });
+      document.querySelectorAll('.led-btn-ch2').forEach(led => {
+        led.className = state.ch2 ? 'led-btn-ch2 w-3 h-3 rounded-full bg-amber-400 animate-pulse transition-all' : 'led-btn-ch2 w-3 h-3 rounded-full bg-slate-600 transition-all';
+      });
+      document.querySelectorAll('.countdown-ch2').forEach(cnt => {
+        cnt.className = state.ch2 ? 'countdown-ch2 text-[10px] font-mono text-amber-300 block' : 'countdown-ch2 text-[10px] font-mono text-amber-300 hidden';
+        cnt.textContent = state.ch2Timer.toFixed(1) + 's';
+      });
+
+      // 3D LEDs & Relay Armatures
+      const safe = sceneRegistry.safeObjects;
+      if (safe.sonoff) {
+        safe.sonoff.ch1Led.material.color.setHex(state.ch1 ? 0x10b981 : 0x334155);
+        safe.sonoff.ch2Led.material.color.setHex(state.ch2 ? 0xf59e0b : 0x334155);
+      }
+      if (safe.relay1) {
+        safe.relay1.led.material.color.setHex(state.ch1 ? 0xef4444 : 0x334155);
+        safe.relay1.armature.rotation.y = state.ch1 ? 0.22 : -0.22;
+      }
+      if (safe.relay2) {
+        safe.relay2.led.material.color.setHex(state.ch2 ? 0xef4444 : 0x334155);
+        safe.relay2.armature.rotation.y = state.ch2 ? 0.22 : -0.22;
+      }
+
+      // Voltage & Status Calculation
+      let vText = "0.0 V (Reposo / Freno masa)";
+      let vClass = "font-mono font-bold text-slate-400";
+      let mText = "En Reposo";
+      let mClass = "font-bold text-slate-400";
+
+      if (state.mode === 'safe') {
+        if (state.ch1 && !state.ch2) {
+          state.voltage = 12.0;
+          vText = "+12.0 V (Relé 1 ON: Abriendo)";
+          vClass = "font-mono font-bold text-emerald-400";
+          mText = `▲ Saliendo (${state.ch1Timer.toFixed(1)}s)`;
+          mClass = "font-bold text-emerald-400 animate-pulse";
+          sound.startMotor();
+        } else if (!state.ch1 && state.ch2) {
+          state.voltage = -12.0;
+          vText = "-12.0 V (Relé 2 ON: Cerrando)";
+          vClass = "font-mono font-bold text-amber-400";
+          mText = `▼ Entrando (${state.ch2Timer.toFixed(1)}s)`;
+          mClass = "font-bold text-amber-400 animate-pulse";
+          sound.startMotor();
+        } else if (state.ch1 && state.ch2) {
+          state.voltage = 0.0;
+          vText = "0.0 V (+12V ambos polos - Seguro)";
+          vClass = "font-mono font-bold text-cyan-400";
+          mText = "■ Parado Seguro (0V)";
+          mClass = "font-bold text-cyan-400";
+          sound.stopMotor();
+        } else {
+          state.voltage = 0.0;
+          sound.stopMotor();
+        }
+      } else {
+        sound.stopMotor();
+        if (state.ch1 || state.ch2) {
+          state.voltage = 0.0;
+          vText = "¡CORTOCIRCUITO! 0V (Dañado)";
+          vClass = "font-mono font-bold text-red-500 animate-pulse";
+          mText = "💥 Cortocircuito";
+          mClass = "font-bold text-red-500";
+        }
+      }
+
+      document.querySelectorAll('.motor-voltage-text').forEach(el => {
+        el.textContent = vText;
+        el.className = vClass;
+      });
+      document.querySelectorAll('.motion-status-badge').forEach(el => {
+        el.textContent = mText;
+        el.className = mClass;
+      });
+      if (mobileMiniStatus) {
+        mobileMiniStatus.textContent = state.voltage > 0 ? '+12V (Abre)' : (state.voltage < 0 ? '-12V (Cierra)' : '0V (Reposo)');
+        mobileMiniStatus.className = state.voltage > 0 ? 'text-[10px] text-emerald-400 font-mono font-bold' : (state.voltage < 0 ? 'text-[10px] text-amber-400 font-mono font-bold' : 'text-[10px] text-cyan-300 font-mono');
+      }
+
+      const mm = Math.round(state.actuatorPos * 300);
+      const pct = Math.round(state.actuatorPos * 100);
+      document.querySelectorAll('.slider-pos-text').forEach(el => el.textContent = `${mm} mm / 300 mm (${pct}%)`);
+      document.querySelectorAll('.rod-slider-input').forEach(el => el.value = mm);
+
+      update3DHUD(mm, pct);
+      updateExplanation();
+    }
+
+    function update3DHUD(mm, pct) {
+      const act = sceneRegistry.safeObjects.actuator;
+      if (!act || !act.hudContext) return;
+      const ctx = act.hudContext;
+
+      ctx.clearRect(0, 0, 512, 128);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.fillRect(8, 8, 496, 112);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = state.voltage > 0 ? '#10b981' : (state.voltage < 0 ? '#f59e0b' : '#0284c7');
+      ctx.strokeRect(8, 8, 496, 112);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText('eWeLink INCHING:', 24, 45);
+
+      ctx.fillStyle = state.voltage > 0 ? '#34d399' : (state.voltage < 0 ? '#fbbf24' : '#e2e8f0');
+      ctx.font = 'bold 24px sans-serif';
+      let statusStr = '■ REPOSO';
+      if (state.voltage > 0) statusStr = `▶▶ SALIENDO (${state.ch1Timer.toFixed(1)}s)`;
+      else if (state.voltage < 0) statusStr = `◀◀ ENTRANDO (${state.ch2Timer.toFixed(1)}s)`;
+      ctx.fillText(statusStr, 225, 45);
+
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(24, 65, 464, 22);
+      ctx.fillStyle = state.voltage > 0 ? '#10b981' : (state.voltage < 0 ? '#f59e0b' : '#38bdf8');
+      ctx.fillRect(24, 65, (pct / 100) * 464, 22);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 20px monospace';
+      ctx.fillText(`${mm} mm / 300 mm (${pct}%)`, 160, 110);
+
+      act.hudTexture.needsUpdate = true;
+    }
+
+    function updateExplanation() {
+      let html = '';
+      if (state.mode === 'danger') {
+        html = `
+          <div class="p-2.5 bg-red-950/40 border border-red-500/40 rounded-xl space-y-1.5">
+            <span class="font-bold text-red-400 flex items-center gap-1">⚠️ MODO 2 FUENTES (PELIGRO)</span>
+            <p>Conectar dos fuentes directamente al actuador crea un lazo que destruye los rectificadores.</p>
+            <p class="text-amber-300 font-semibold">Pulsa CANAL 1 o CANAL 2 para simular el daño.</p>
+          </div>
+        `;
+      } else if (state.ch1 && !state.ch2) {
+        html = `
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-1.5 text-emerald-400 font-bold">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              CANAL 1: ABRIR (${state.ch1Timer.toFixed(1)}s restantes)
+            </div>
+            <p>• Sonoff activa 220V por <b>Out 1</b> al <b>Pin 7</b> del Relé 1 (LY2NJ).</p>
+            <p>• El <b>Pin 5 (COM)</b> conecta con <b>Pin 3 (NO)</b> entregando +12V.</p>
+            <p>• El Relé 2 queda en 0V masa (Pin 1 NC). El motor recibe +12V.</p>
+            <p class="text-cyan-300">⏱️ Al cumplirse ${state.inchingDuration}s, se apaga solo.</p>
+          </div>
+        `;
+      } else if (!state.ch1 && state.ch2) {
+        html = `
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-1.5 text-amber-400 font-bold">
+              <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+              CANAL 2: CERRAR (${state.ch2Timer.toFixed(1)}s restantes)
+            </div>
+            <p>• Sonoff activa 220V por <b>Out 2</b> al <b>Pin 7</b> del Relé 2 (LY2NJ).</p>
+            <p>• El <b>Pin 5 (COM)</b> conecta con <b>Pin 3 (NO)</b> a +12V.</p>
+            <p>• El Relé 1 queda en 0V masa. La polaridad se invierte a -12V.</p>
+            <p class="text-cyan-300">⏱️ Al cumplirse ${state.inchingDuration}s, el motor frena bloqueado.</p>
+          </div>
+        `;
+      } else {
+        html = `
+          <div class="space-y-1 text-slate-300">
+            <div class="text-slate-200 font-bold flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+              REPOSO (FRENO DINÁMICO)
+            </div>
+            <p>• Relés LY2NJ en reposo conectan <b>Pin 5 a Pin 1 (GND)</b>.</p>
+            <p>• Ambos cables del motor están en masa, evitando que el viento mueva el portón.</p>
+            <p class="text-cyan-400">➡️ Pulsa CANAL 1 para abrir o CANAL 2 para cerrar.</p>
+          </div>
+        `;
+      }
+      document.querySelectorAll('.live-explanation-box').forEach(el => el.innerHTML = html);
+    }
+
+    // Raycaster Hover
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    window.addEventListener('pointermove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(sceneRegistry.interactiveMeshes);
+
+      if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        if (hit.userData && hit.userData.isWire) {
+          const m = hit.userData.wireObj.meta;
+          hoverTooltip.classList.remove('hidden');
+          hoverTooltip.style.left = Math.min(window.innerWidth - 220, e.clientX + 14) + 'px';
+          hoverTooltip.style.top = Math.min(window.innerHeight - 120, e.clientY + 14) + 'px';
+          tooltipTitle.textContent = `${m.code}: ${m.signal}`;
+          tooltipDesc.innerHTML = `<b>Desde:</b> ${m.from}<br><b>Hacia:</b> ${m.to}<br><b>Cable:</b> ${m.colorName} (${m.gauge})<br><span class="text-cyan-300">${m.desc}</span>`;
+          return;
+        }
+      }
+      hoverTooltip.classList.add('hidden');
+    });
+
+    // Clock and Animation Loop
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      const elapsed = clock.getElapsedTime();
+
+      const safe = sceneRegistry.safeObjects;
+      if (safe.sonoff && safe.sonoff.wifiLed) {
+        safe.sonoff.wifiLed.material.opacity = 0.5 + Math.sin(elapsed * 4) * 0.5;
+      }
+
+      if (state.mode === 'safe') {
+        if (state.ch1) {
+          state.ch1Timer = Math.max(0, state.ch1Timer - delta);
+          if (state.ch1Timer <= 0) {
+            state.ch1 = false;
+            sound.relaySnap();
+            updateUI();
+          } else {
+            document.querySelectorAll('.countdown-ch1').forEach(c => c.textContent = state.ch1Timer.toFixed(1) + 's');
+          }
+        }
+
+        if (state.ch2) {
+          state.ch2Timer = Math.max(0, state.ch2Timer - delta);
+          if (state.ch2Timer <= 0) {
+            state.ch2 = false;
+            sound.relaySnap();
+            updateUI();
+          } else {
+            document.querySelectorAll('.countdown-ch2').forEach(c => c.textContent = state.ch2Timer.toFixed(1) + 's');
+          }
+        }
+
+        const travelSpeed = 1.0 / state.inchingDuration;
+        if (state.voltage > 0) {
+          state.actuatorPos = Math.min(1.0, state.actuatorPos + travelSpeed * delta);
+        } else if (state.voltage < 0) {
+          state.actuatorPos = Math.max(0.0, state.actuatorPos - travelSpeed * delta);
+        }
+
+        if (safe.actuator) {
+          const act = safe.actuator;
+          const travelDistance = state.actuatorPos * 3.2;
+          act.innerRodMesh.position.x = 0.45 + travelDistance;
+
+          act.arrowExt.visible = (state.voltage > 0);
+          act.arrowRet.visible = (state.voltage < 0);
+          if (state.voltage > 0) {
+            act.arrowExt.position.x = 2.4 + (elapsed * 2) % 2.0;
+          } else if (state.voltage < 0) {
+            act.arrowRet.position.x = 4.4 - (elapsed * 2) % 2.0;
+          }
+
+          const doorAngle = -state.actuatorPos * 1.3;
+          act.hingedDoor.rotation.y = doorAngle;
+
+          const currentTipX = 4.4 + (0.45 + travelDistance) + 1.95;
+          const bx = 4.4 + 5.8 + Math.sin(doorAngle) * 0.8;
+          const bz = 0.5 + 2.0 - Math.cos(doorAngle) * 0.8;
+          const midX = (currentTipX + bx) / 2 - 4.4;
+          const midZ = (0.5 + bz) / 2 - 0.5;
+          act.linkageBar.position.set(midX, 0, midZ);
+          act.linkageBar.rotation.y = Math.atan2(bz - 0.5, bx - currentTipX);
+        }
+
+        const mm = Math.round(state.actuatorPos * 300);
+        const pct = Math.round(state.actuatorPos * 100);
+        document.querySelectorAll('.slider-pos-text').forEach(el => el.textContent = `${mm} mm / 300 mm (${pct}%)`);
+        document.querySelectorAll('.rod-slider-input').forEach(el => el.value = mm);
+        update3DHUD(mm, pct);
+      }
+
+      // Wires current particles
+      const activeWires = state.mode === 'safe' ? sceneRegistry.safeWires : sceneRegistry.dangerWires;
+      activeWires.forEach(w => {
+        let isFlowing = false;
+        let dir = 1;
+
+        if (state.mode === 'safe') {
+          if (w.id.includes('mains') || w.id.includes('psu')) isFlowing = true;
+          if (state.ch1 && (w.id === 'sonoff-out1' || w.id === 'coil-N1' || w.id === '12v-plus-r1' || w.id === 'actuator-wire1')) {
+            isFlowing = true;
+            dir = 1;
+          }
+          if (state.ch2 && (w.id === 'sonoff-out2' || w.id === 'coil-N2' || w.id === '12v-plus-r2' || w.id === 'actuator-wire2')) {
+            isFlowing = true;
+            dir = -1;
+          }
+        }
+
+        w.particles.visible = isFlowing;
+        if (isFlowing) {
+          w.offset = (w.offset + delta * 0.9 * dir + 1) % 1;
+          const posAttr = w.particles.geometry.attributes.position;
+          const count = posAttr.count;
+          for (let i = 0; i < count; i++) {
+            const t = ((i / count) + w.offset) % 1;
+            const pt = w.curve.getPointAt(t);
+            posAttr.setXYZ(i, pt.x, pt.y, pt.z);
+          }
+          posAttr.needsUpdate = true;
+        }
+      });
+
+      // Sparks in Danger Mode
+      if (sceneRegistry.sparks && sceneRegistry.sparks.active) {
+        sceneRegistry.sparks.time += delta;
+        const sMesh = sceneRegistry.sparks.mesh;
+        sMesh.material.opacity = Math.max(0, 1 - sceneRegistry.sparks.time * 2);
+        const posAttr = sMesh.geometry.attributes.position;
+        for (let i = 0; i < posAttr.count; i++) {
+          posAttr.setXYZ(
+            i,
+            (Math.random() - 0.5) * 1.5,
+            Math.random() * 1.2,
+            (Math.random() - 0.5) * 1.5
+          );
+        }
+        posAttr.needsUpdate = true;
+        if (sceneRegistry.sparks.time > 1.5) {
+          sceneRegistry.sparks.active = false;
+          sMesh.material.opacity = 0;
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      setupCameraFraming();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    updateUI();
+    animate();
+  </script>
+</body>
+</html>
